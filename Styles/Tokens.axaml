@@ -1,0 +1,101 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    设计令牌。全部使用自定义键名，不依赖 FluentTheme 的内部键，
+    以免主题包内部改名导致界面失效。
+    消费方一律用 {DynamicResource}，否则切换主题时不会刷新。
+  -->
+  <ResourceDictionary.ThemeDictionaries>
+
+    <ResourceDictionary x:Key="Light">
+      <!-- 表面 -->
+      <SolidColorBrush x:Key="SurfaceBase" Color="#F2F3F5" />
+      <SolidColorBrush x:Key="SurfaceRaised" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="SurfaceSunken" Color="#FAFBFC" />
+      <SolidColorBrush x:Key="SurfaceHeader" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="SurfaceHover" Color="#14000000" />
+      <SolidColorBrush x:Key="SurfaceSelected" Color="#1F18864B" />
+
+      <!-- 描边 -->
+      <SolidColorBrush x:Key="StrokeSubtle" Color="#E2E5E9" />
+      <SolidColorBrush x:Key="StrokeStrong" Color="#C9CFD6" />
+
+      <!-- 文字 -->
+      <SolidColorBrush x:Key="TextPrimary" Color="#191C21" />
+      <SolidColorBrush x:Key="TextSecondary" Color="#586069" />
+      <SolidColorBrush x:Key="TextMuted" Color="#8A929D" />
+      <SolidColorBrush x:Key="TextOnAccent" Color="#FFFFFF" />
+
+      <!-- 强调色（主行动 / 选中态） -->
+      <SolidColorBrush x:Key="AccentBrush" Color="#18864B" />
+      <SolidColorBrush x:Key="AccentHoverBrush" Color="#1C9A56" />
+      <SolidColorBrush x:Key="AccentPressedBrush" Color="#13703E" />
+
+      <!-- 危险操作 -->
+      <SolidColorBrush x:Key="DangerBrush" Color="#B4232D" />
+      <SolidColorBrush x:Key="DangerHoverBrush" Color="#C92A35" />
+      <SolidColorBrush x:Key="DangerPressedBrush" Color="#951C25" />
+
+      <!-- 状态语义色 -->
+      <SolidColorBrush x:Key="StatusOkBrush" Color="#1A7F37" />
+      <SolidColorBrush x:Key="StatusBusyBrush" Color="#0969DA" />
+      <SolidColorBrush x:Key="StatusWarnBrush" Color="#9A6700" />
+      <SolidColorBrush x:Key="StatusErrorBrush" Color="#CF222E" />
+
+      <!-- 浮层 -->
+      <SolidColorBrush x:Key="OverlaySurface" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="OverlayStroke" Color="#C9CFD6" />
+    </ResourceDictionary>
+
+    <ResourceDictionary x:Key="Dark">
+      <!-- 表面 -->
+      <SolidColorBrush x:Key="SurfaceBase" Color="#15171C" />
+      <SolidColorBrush x:Key="SurfaceRaised" Color="#1D2026" />
+      <SolidColorBrush x:Key="SurfaceSunken" Color="#101216" />
+      <SolidColorBrush x:Key="SurfaceHeader" Color="#101216" />
+      <SolidColorBrush x:Key="SurfaceHover" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="SurfaceSelected" Color="#292FA96A" />
+
+      <!-- 描边 -->
+      <SolidColorBrush x:Key="StrokeSubtle" Color="#2A2E36" />
+      <SolidColorBrush x:Key="StrokeStrong" Color="#3B414B" />
+
+      <!-- 文字 -->
+      <SolidColorBrush x:Key="TextPrimary" Color="#E8EBF0" />
+      <SolidColorBrush x:Key="TextSecondary" Color="#A7AFBC" />
+      <SolidColorBrush x:Key="TextMuted" Color="#6E7683" />
+      <SolidColorBrush x:Key="TextOnAccent" Color="#FFFFFF" />
+
+      <!-- 强调色（主行动 / 选中态） -->
+      <SolidColorBrush x:Key="AccentBrush" Color="#2FA96A" />
+      <SolidColorBrush x:Key="AccentHoverBrush" Color="#37BD79" />
+      <SolidColorBrush x:Key="AccentPressedBrush" Color="#268A57" />
+
+      <!-- 危险操作 -->
+      <SolidColorBrush x:Key="DangerBrush" Color="#DA3633" />
+      <SolidColorBrush x:Key="DangerHoverBrush" Color="#E5484D" />
+      <SolidColorBrush x:Key="DangerPressedBrush" Color="#B62A28" />
+
+      <!-- 状态语义色 -->
+      <SolidColorBrush x:Key="StatusOkBrush" Color="#3FB950" />
+      <SolidColorBrush x:Key="StatusBusyBrush" Color="#58A6FF" />
+      <SolidColorBrush x:Key="StatusWarnBrush" Color="#D29922" />
+      <SolidColorBrush x:Key="StatusErrorBrush" Color="#F85149" />
+
+      <!-- 浮层 -->
+      <SolidColorBrush x:Key="OverlaySurface" Color="#1D2026" />
+      <SolidColorBrush x:Key="OverlayStroke" Color="#3B414B" />
+    </ResourceDictionary>
+
+  </ResourceDictionary.ThemeDictionaries>
+
+  <!-- 以下令牌不随主题变化 -->
+  <CornerRadius x:Key="RadiusSm">4</CornerRadius>
+  <CornerRadius x:Key="RadiusMd">6</CornerRadius>
+  <CornerRadius x:Key="RadiusLg">10</CornerRadius>
+
+  <FontFamily x:Key="EditorFontFamily">Cascadia Code, Cascadia Mono, Consolas, Menlo, monospace</FontFamily>
+  <FontFamily x:Key="UiFontFamily">Inter, Microsoft YaHei UI, Segoe UI</FontFamily>
+
+</ResourceDictionary>

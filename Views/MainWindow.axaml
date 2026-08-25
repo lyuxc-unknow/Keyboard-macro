@@ -1,0 +1,321 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SimToAutoWirte.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DesignWidth="1120" d:DesignHeight="740"
+        x:Class="SimToAutoWirte.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="输入演示台"
+        Width="1120" Height="740"
+        MinWidth="860" MinHeight="600"
+        Background="{DynamicResource SurfaceBase}"
+        FontFamily="{DynamicResource UiFontFamily}">
+
+  <Design.DataContext>
+    <vm:MainWindowViewModel />
+  </Design.DataContext>
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ════════════════  顶部：品牌 · 状态 · 主题切换  ════════════════ -->
+    <Border Grid.Row="0"
+            Background="{DynamicResource SurfaceHeader}"
+            BorderBrush="{DynamicResource StrokeSubtle}"
+            BorderThickness="0,0,0,1"
+            Padding="18,12">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+
+        <StackPanel Orientation="Horizontal" Spacing="11" VerticalAlignment="Center">
+          <TextBlock Text="⌨"
+                     FontSize="19"
+                     Foreground="{DynamicResource AccentBrush}"
+                     VerticalAlignment="Center" />
+          <StackPanel Spacing="1" VerticalAlignment="Center">
+            <TextBlock Text="打字宏"
+                       FontSize="15"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Text="Keyboard presentation console" Classes="meta" />
+          </StackPanel>
+        </StackPanel>
+
+        <Button Grid.Column="2"
+                Classes="toolbar"
+                Click="ThemeButton_OnClick"
+                ToolTip.Tip="切换主题：跟随系统 → 亮色 → 暗色">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <TextBlock Text="{Binding ThemeModeGlyph}" FontSize="13" />
+            <TextBlock Text="{Binding ThemeModeLabel}" FontSize="12" />
+          </StackPanel>
+        </Button>
+
+      </Grid>
+    </Border>
+
+    <!-- ════════════════  主体：左栏宏组 + 右侧工作区  ════════════════ -->
+    <Grid Grid.Row="1" Margin="16" ColumnDefinitions="260,*" ColumnSpacing="14">
+
+      <!-- ────────  左栏：宏组  ──────── -->
+      <Border Classes="card">
+        <Grid RowDefinitions="Auto,*,Auto">
+
+          <Grid Margin="14,13,10,9" ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="宏组" Classes="sectionTitle" />
+              <TextBlock Text="{Binding MacroCountText}" Classes="meta" />
+            </StackPanel>
+            <Button Grid.Column="1"
+                    Classes="toolbar"
+                    Content="＋"
+                    FontSize="17"
+                    Padding="9,1"
+                    Click="AddMacroButton_OnClick"
+                    IsEnabled="{Binding CanConfigure}"
+                    ToolTip.Tip="新建宏组" />
+          </Grid>
+
+          <ListBox Grid.Row="1"
+                   Classes="macroList"
+                   ItemsSource="{Binding Macros}"
+                   SelectedItem="{Binding SelectedMacro, Mode=TwoWay}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:MacroGroupViewModel">
+                <StackPanel Spacing="3">
+                  <TextBlock Text="{Binding Name}"
+                             FontSize="12.5"
+                             FontWeight="SemiBold"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding HotkeySummary}"
+                             Classes="hotkeyChip"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding CharacterCountText}" Classes="meta" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <StackPanel Grid.Row="2" Margin="12,8,12,12" Spacing="6">
+            <Button Content="复制当前宏"
+                    HorizontalAlignment="Stretch"
+                    Click="DuplicateMacroButton_OnClick"
+                    IsEnabled="{Binding CanConfigure}" />
+            <Button Content="删除当前宏"
+                    HorizontalAlignment="Stretch"
+                    Click="RemoveMacroButton_OnClick"
+                    IsEnabled="{Binding CanRemoveMacro}" />
+          </StackPanel>
+
+        </Grid>
+      </Border>
+
+      <!-- ────────  右侧：内容编辑 + 参数  ──────── -->
+      <Border Grid.Column="1" Classes="card">
+        <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+          <!-- 标题 + 工具条 -->
+          <Grid Margin="16,13,12,10" ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="{Binding SelectedMacro.Name}" Classes="title" />
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="{Binding SelectedMacro.CharacterCountText}" Classes="meta" />
+                <TextBlock Text="·" Classes="meta" />
+                <TextBlock Text="{Binding SelectedMacro.EstimatedDurationText}" Classes="meta" />
+              </StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+              <Button Classes="toolbar" Content="载入示例" Click="LoadSampleButton_OnClick" IsEnabled="{Binding CanConfigure}" />
+              <Button Classes="toolbar" Content="导入" Click="ImportButton_OnClick" IsEnabled="{Binding CanConfigure}" />
+              <Button Classes="toolbar" Content="导出" Click="ExportButton_OnClick" />
+              <Button Classes="toolbar" Content="清空" Click="ClearButton_OnClick" IsEnabled="{Binding CanConfigure}" />
+            </StackPanel>
+          </Grid>
+
+          <!-- 编辑器：行号槽固定在左侧，不参与横向滚动；纵向偏移由 code-behind
+               镜像编辑器自身 ScrollViewer 的 Offset.Y。编辑器保留原生滚动，
+               因此光标跟随、键盘导航都正常，行号也从一开始就可见。 -->
+          <Border Grid.Row="1"
+                  Margin="14,0,14,0"
+                  Background="{DynamicResource SurfaceSunken}"
+                  BorderBrush="{DynamicResource StrokeSubtle}"
+                  BorderThickness="1"
+                  CornerRadius="{DynamicResource RadiusMd}">
+            <Grid ColumnDefinitions="Auto,Auto,*">
+
+              <Border Grid.Column="0"
+                      ClipToBounds="True"
+                      Padding="12,10,10,10">
+                <TextBlock x:Name="LineNumbers"
+                           Classes="gutter"
+                           MinWidth="22"
+                           VerticalAlignment="Top" />
+              </Border>
+
+              <Border Grid.Column="1"
+                      Width="1"
+                      Background="{DynamicResource StrokeSubtle}"
+                      Margin="0,8" />
+
+              <TextBox x:Name="Editor"
+                       Grid.Column="2"
+                       Classes="editor"
+                       Margin="10,10,12,10"
+                       Text="{Binding SelectedMacro.MacroText, Mode=TwoWay}"
+                       AcceptsReturn="True"
+                       AcceptsTab="True"
+                       TextWrapping="NoWrap"
+                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                       ScrollViewer.VerticalScrollBarVisibility="Auto"
+                       IsReadOnly="{Binding IsRunning}"
+                       PlaceholderText="在此输入或导入当前宏的内容..." />
+
+            </Grid>
+          </Border>
+
+          <!-- 元信息行 -->
+          <Grid Grid.Row="2" Margin="16,8,16,4" ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding SelectedMacro.EstimatedDurationText}" Classes="meta" VerticalAlignment="Center" />
+            <TextBlock x:Name="CaretPosition"
+                       Grid.Column="1"
+                       Classes="meta"
+                       Text="行 1，列 1"
+                       VerticalAlignment="Center" />
+          </Grid>
+
+          <!-- 参数带 -->
+          <Border Grid.Row="3"
+                  Margin="14,6,14,14"
+                  Padding="14,12"
+                  Background="{DynamicResource SurfaceSunken}"
+                  BorderBrush="{DynamicResource StrokeSubtle}"
+                  BorderThickness="1"
+                  CornerRadius="{DynamicResource RadiusMd}">
+            <Grid ColumnDefinitions="*,18,1.35*" RowDefinitions="Auto,12,Auto">
+
+              <!-- 第一行 -->
+              <StackPanel Spacing="5">
+                <TextBlock Text="宏名称" Classes="label" />
+                <TextBox Classes="field"
+                         Text="{Binding SelectedMacro.Name, Mode=TwoWay}"
+                         IsEnabled="{Binding CanConfigure}" />
+              </StackPanel>
+
+              <Grid Grid.Column="2" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                <StackPanel Spacing="5">
+                  <TextBlock Text="开机静默启动" Classes="label" />
+                  <TextBlock Text="登录 Windows 后在后台运行" Classes="meta" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1"
+                              IsChecked="{Binding IsStartWithWindowsEnabled, Mode=TwoWay}"
+                              VerticalAlignment="Center" />
+              </Grid>
+
+              <!-- 第二行 -->
+              <StackPanel Grid.Row="2" Spacing="5">
+                <TextBlock Text="启动热键" Classes="label" />
+                <ComboBox ItemsSource="{Binding HotkeyOptions}"
+                          SelectedItem="{Binding SelectedMacro.StartHotkey, Mode=TwoWay}"
+                          SelectionChanged="Hotkey_OnSelectionChanged"
+                          IsEnabled="{Binding CanConfigure}"
+                          HorizontalAlignment="Stretch" />
+              </StackPanel>
+
+              <Grid Grid.Row="2" Grid.Column="2" ColumnDefinitions="*,10,*">
+                <StackPanel Spacing="5">
+                  <TextBlock Text="停止热键" Classes="label" />
+                  <ComboBox ItemsSource="{Binding HotkeyOptions}"
+                            SelectedItem="{Binding SelectedMacro.StopHotkey, Mode=TwoWay}"
+                            SelectionChanged="Hotkey_OnSelectionChanged"
+                            IsEnabled="{Binding CanConfigure}"
+                            HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="5">
+                  <TextBlock Text="按钮启动倒计时" Classes="label" />
+                  <NumericUpDown Value="{Binding SelectedMacro.StartDelay, Mode=TwoWay}"
+                                 Minimum="0" Maximum="10" Increment="1"
+                                 FormatString="0 秒"
+                                 IsEnabled="{Binding CanConfigure}" />
+                </StackPanel>
+              </Grid>
+
+            </Grid>
+          </Border>
+
+        </Grid>
+      </Border>
+
+    </Grid>
+
+    <!-- ════════════════  底部：贯通运行条（状态的唯一权威来源）  ════════════════ -->
+    <Border Grid.Row="2"
+            Background="{DynamicResource SurfaceHeader}"
+            BorderBrush="{DynamicResource StrokeSubtle}"
+            BorderThickness="0,1,0,0"
+            Padding="18,11">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="16">
+
+        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center" MinWidth="240">
+          <Ellipse Classes="statusDot"
+                   Classes.ok="{Binding IsStatusOk}"
+                   Classes.busy="{Binding IsStatusBusy}"
+                   Classes.warn="{Binding IsStatusWarning}"
+                   Classes.err="{Binding IsStatusError}"
+                   VerticalAlignment="Center" />
+          <StackPanel Spacing="2" VerticalAlignment="Center">
+            <TextBlock Text="{Binding StatusTitle}"
+                       Classes="statusText"
+                       Classes.warn="{Binding IsStatusWarning}"
+                       Classes.err="{Binding IsStatusError}" />
+            <TextBlock Text="{Binding StatusDetail}" Classes="meta" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- 进度与实时替换计数（原本显示在右上角浮层里，浮层移除后收拢到这里） -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="4" VerticalAlignment="Center">
+          <Grid ColumnDefinitions="*,10,Auto">
+            <ProgressBar Classes="run"
+                         Minimum="0" Maximum="100"
+                         Value="{Binding Progress}"
+                         VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2"
+                       Text="{Binding ProgressText}"
+                       Classes="meta"
+                       FontWeight="SemiBold"
+                       MinWidth="34"
+                       TextAlignment="Right"
+                       VerticalAlignment="Center" />
+          </Grid>
+          <TextBlock Grid.Row="1"
+                     Text="{Binding RunningProgressDetail}"
+                     Classes="meta"
+                     HorizontalAlignment="Right"
+                     TextTrimming="CharacterEllipsis" />
+        </Grid>
+
+        <Button Grid.Column="2"
+                Classes="primary"
+                Click="StartButton_OnClick"
+                IsEnabled="{Binding CanStart}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="▶  开始" />
+            <TextBlock Text="{Binding SelectedMacro.StartHotkey.DisplayName}" Opacity="0.72" />
+          </StackPanel>
+        </Button>
+
+        <Button Grid.Column="3"
+                Classes="danger"
+                Click="StopButton_OnClick"
+                IsEnabled="{Binding CanStop}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="■  停止" />
+            <TextBlock Text="{Binding SelectedMacro.StopHotkey.DisplayName}" Opacity="0.72" />
+          </StackPanel>
+        </Button>
+
+      </Grid>
+    </Border>
+
+  </Grid>
+</Window>
