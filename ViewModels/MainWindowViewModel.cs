@@ -585,9 +585,17 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
     private void SelectedMacroOnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (ReferenceEquals(sender, SelectedMacro))
+        if (ReferenceEquals(sender, SelectedMacro)
+            && e.PropertyName == nameof(MacroGroupViewModel.MacroText))
         {
             this.RaisePropertyChanged(nameof(CanStart));
+        }
+
+        if (e.PropertyName is nameof(MacroGroupViewModel.CharacterCountText)
+            or nameof(MacroGroupViewModel.EstimatedDurationText)
+            or nameof(MacroGroupViewModel.HotkeySummary))
+        {
+            return;
         }
 
         ScheduleSave();
@@ -631,7 +639,8 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
                 storedMacro.Content ?? string.Empty,
                 startHotkey,
                 stopHotkey,
-                storedMacro.StartDelay));
+                storedMacro.StartDelay,
+                storedMacro.Id));
         }
 
         return result;
@@ -653,6 +662,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
         {
             store.Macros.Add(new StoredMacro
             {
+                Id = macro.Id,
                 Name = macro.Name,
                 Content = macro.MacroText,
                 StartVirtualKey = macro.StartHotkey.VirtualKey,
@@ -673,18 +683,18 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var snapshot = CreateStore();
         var cancellation = new CancellationTokenSource();
         var previous = Interlocked.Exchange(ref _saveDebounce, cancellation);
         previous?.Cancel();
-        _ = SaveAfterDelayAsync(snapshot, cancellation);
+        _ = SaveAfterDelayAsync(cancellation);
     }
 
-    private async Task SaveAfterDelayAsync(MacroStore snapshot, CancellationTokenSource cancellation)
+    private async Task SaveAfterDelayAsync(CancellationTokenSource cancellation)
     {
         try
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellation.Token);
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellation.Token);
+            var snapshot = CreateStore();
             await Task.Run(() => _macroStorageService.Save(snapshot), cancellation.Token);
         }
         catch (OperationCanceledException)

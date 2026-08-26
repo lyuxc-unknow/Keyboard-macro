@@ -17,14 +17,18 @@ public sealed class MacroGroupViewModel : ViewModelBase
         string macroText,
         HotkeyOption startHotkey,
         HotkeyOption stopHotkey,
-        int startDelay = 3)
+        int startDelay = 3,
+        Guid? id = null)
     {
+        Id = id is { } storedId && storedId != Guid.Empty ? storedId : Guid.NewGuid();
         _name = name;
         _macroText = macroText;
         _startHotkey = startHotkey;
         _stopHotkey = stopHotkey;
         _startDelay = Math.Clamp(startDelay, 0, 10);
     }
+
+    public Guid Id { get; }
 
     public string Name
     {
@@ -37,7 +41,13 @@ public sealed class MacroGroupViewModel : ViewModelBase
         get => _macroText;
         set
         {
-            this.RaiseAndSetIfChanged(ref _macroText, value ?? string.Empty);
+            var nextValue = value ?? string.Empty;
+            if (string.Equals(_macroText, nextValue, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _macroText, nextValue);
             this.RaisePropertyChanged(nameof(CharacterCountText));
             this.RaisePropertyChanged(nameof(EstimatedDurationText));
         }
