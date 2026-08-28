@@ -22,7 +22,7 @@ public sealed class MacroGroupViewModel : ViewModelBase
     {
         Id = id is { } storedId && storedId != Guid.Empty ? storedId : Guid.NewGuid();
         _name = name;
-        _macroText = macroText;
+        _macroText = WindowsLineEndings.Normalize(macroText);
         _startHotkey = startHotkey;
         _stopHotkey = stopHotkey;
         _startDelay = Math.Clamp(startDelay, 0, 10);
@@ -41,7 +41,7 @@ public sealed class MacroGroupViewModel : ViewModelBase
         get => _macroText;
         set
         {
-            var nextValue = value ?? string.Empty;
+            var nextValue = WindowsLineEndings.Normalize(value);
             if (string.Equals(_macroText, nextValue, StringComparison.Ordinal))
             {
                 return;
@@ -98,5 +98,5 @@ public sealed class MacroGroupViewModel : ViewModelBase
         StopHotkey,
         StartDelay);
 
-    private static int GetLogicalLength(string text) => text.Replace("\r\n", "\n").Length;
+    private static int GetLogicalLength(string text) => WindowsLineEndings.GetLogicalLength(text);
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Threading;
+using SimToAutoWirte.Models;
 
 namespace SimToAutoWirte.Services;
 
@@ -24,7 +25,7 @@ public sealed class KeyboardInputService
         {
             case '\r':
             case '\n':
-                SendVirtualKey(VirtualKeyReturn);
+                SendNewLine();
                 break;
             case '\t':
                 SendVirtualKey(VirtualKeyTab);
@@ -35,11 +36,19 @@ public sealed class KeyboardInputService
         }
     }
 
+    /// <summary>向 Windows 前台控件发送一次 Enter；一个 CRLF 对应一次调用。</summary>
+    public void SendNewLine()
+    {
+        EnsureWindows();
+        SendVirtualKey(VirtualKeyReturn);
+    }
+
     /// <summary>一次性发送整段替换文本，不再按字符等待。</summary>
     public void SendText(string text, CancellationToken cancellationToken = default)
     {
         EnsureWindows();
-        if (string.IsNullOrEmpty(text))
+        text = WindowsLineEndings.Normalize(text);
+        if (text.Length == 0)
         {
             return;
         }

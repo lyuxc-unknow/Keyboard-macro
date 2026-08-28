@@ -514,15 +514,23 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
         }
 
         var character = text[index];
+        var isNewLine = character is '\r' or '\n';
         var advance = character == '\r' && index + 1 < text.Length && text[index + 1] == '\n'
             ? 2
             : 1;
 
         // 必须先发送、成功后再推进索引。SendInput 会失败（目标窗口以管理员权限运行被 UIPI 拦截、
-        // 前台窗口正在切换等），此时 SendCharacter 抛异常。旧实现无论成败都先推进索引，
+        // 前台窗口正在切换等），此时注入方法抛异常。旧实现无论成败都先推进索引，
         // 失败的那个字符就被永久跳过；一旦跳过的是换行符，后面的内容会挤到同一行，
         // 表现为"有时莫名其妙不换行、代码错乱"。现在失败则索引原地不动，下次按键重试同一个字符。
-        _keyboardInputService.SendCharacter(character);
+        if (isNewLine)
+        {
+            _keyboardInputService.SendNewLine();
+        }
+        else
+        {
+            _keyboardInputService.SendCharacter(character);
+        }
         _replacementIndex = index + advance;
 
         var completed = _replacementIndex >= text.Length ? logicalLength : GetLogicalLength(text[.._replacementIndex]);
@@ -743,7 +751,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
         return options;
     }
 
-    private static int GetLogicalLength(string text) => text.Replace("\r\n", "\n").Length;
+    private static int GetLogicalLength(string text) => WindowsLineEndings.GetLogicalLength(text);
 
     public void Dispose()
     {

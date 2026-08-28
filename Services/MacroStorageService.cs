@@ -114,6 +114,7 @@ public sealed class MacroStorageService
             NormalizeStore(store);
             CacheLoadedStore(store);
             _lastIndexJson = indexJson;
+            NormalizePersistedLineEndings(store);
             return store;
         }
         catch (JsonException)
@@ -183,7 +184,8 @@ public sealed class MacroStorageService
         foreach (var macro in store.Macros)
         {
             expectedIds.Add(macro.Id);
-            var content = macro.Content ?? string.Empty;
+            var content = WindowsLineEndings.Normalize(macro.Content);
+            macro.Content = content;
             if (_lastSavedContents.TryGetValue(macro.Id, out var previous)
                 && (ReferenceEquals(previous, content)
                     || string.Equals(previous, content, StringComparison.Ordinal)))
@@ -227,10 +229,34 @@ public sealed class MacroStorageService
         _lastSavedContents.Clear();
         foreach (var macro in store.Macros)
         {
-            if (File.Exists(GetMacroContentPath(macro.Id)))
+            var contentPath = GetMacroContentPath(macro.Id);
+            if (!File.Exists(contentPath))
             {
-                _lastSavedContents[macro.Id] = macro.Content ?? string.Empty;
+                continue;
             }
+
+            // 只缓存磁盘中与规范化后的内存内容完全一致的正文。
+            // 如果旧文件使用 LF/孤立 CR，LoadSplitStore 后虽已规范化内存，
+            // 仍需让 SaveCore 重写磁盘文件为 Windows CRLF。
+            var persistedContent = File.ReadAllText(contentPath, Utf8WithoutBom);
+            if (string.Equals(persistedContent, macro.Content, StringComparison.Ordinal))
+            {
+                _lastSavedContents[macro.Id] = macro.Content;
+            }
+        }
+    }
+
+    private void NormalizePersistedLineEndings(MacroStore store)
+    {
+        try
+        {
+            SaveCore(store);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // 正文已在内存中规范化；下次用户保存时再尝试修正磁盘文件。
+            _lastSavedContents.Clear();
+            _lastIndexJson = null;
         }
     }
 
@@ -250,7 +276,7 @@ public sealed class MacroStorageService
             }
 
             macro.Name = string.IsNullOrWhiteSpace(macro.Name) ? "未命名宏" : macro.Name;
-            macro.Content ??= string.Empty;
+            macro.Content = WindowsLineEndings.Normalize(macro.Content);
         }
     }
 
