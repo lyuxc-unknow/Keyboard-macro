@@ -42,6 +42,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly MacroStorageService _macroStorageService = new();
     private readonly StartupService _startupService = new();
     private readonly SemaphoreSlim _hotkeyConfigurationLock = new(1, 1);
+    private readonly object _replacementStateLock = new();
     private GlobalHotkeyService? _globalHotkeyService;
     private CancellationTokenSource? _runCancellation;
     private MacroGroupViewModel _selectedMacro;
@@ -49,6 +50,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
     private AppThemeMode _themeMode = AppThemeMode.System;
     private bool _isStartWithWindowsEnabled;
     private bool _isRunning;
+    private bool _isPaused;
     private double _progress;
     private string _statusTitle = "正在初始化";
     private string _statusDetail = "准备全局热键";
@@ -86,7 +88,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
         _keyboardInterceptionService.ReplacementRequested = ReplaceActiveInputAsync;
         _keyboardInterceptionService.ReplacementFailed = exception => Dispatcher.UIThread.Post(() =>
         {
-            if (IsRunning)
+            if (IsRunning && !IsPaused)
             {
                 SetStatus("替换输入失败", exception.Message, StatusSeverity.Error);
             }
@@ -133,6 +135,17 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
             this.RaisePropertyChanged(nameof(CanStop));
             this.RaisePropertyChanged(nameof(CanConfigure));
             this.RaisePropertyChanged(nameof(CanRemoveMacro));
+        }
+    }
+
+    public bool IsPaused
+    {
+        get => _isPaused;
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _isPaused, value);
+            this.RaisePropertyChanged(nameof(CanStart));
+            this.RaisePropertyChanged(nameof(StartActionLabel));
         }
     }
 
@@ -259,13 +272,15 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
         }
     }
 
-    public bool CanStart => !IsRunning && SelectedMacro.MacroText.Length > 0;
+    public bool CanStart => IsPaused || (!IsRunning && SelectedMacro.MacroText.Length > 0);
 
     public bool CanStop => IsRunning;
 
     public bool CanConfigure => !IsRunning;
 
     public bool CanRemoveMacro => !IsRunning && Macros.Count > 1;
+
+    public string StartActionLabel => IsPaused ? "▶  继续" : "▶  开始";
 
     /// <summary>在 跟随系统 → 亮色 → 暗色 之间循环切换。</summary>
     public void CycleThemeMode()
@@ -384,11 +399,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
                 bindings.Add(new GlobalHotkeyBinding(
                     hotkeyId++,
                     macroForCallback.StartHotkey,
-                    () => Dispatcher.UIThread.Post(() => _ = StartMacroAsync(macroForCallback, useCountdown: false))));
+                    () => Dispatcher.UIThread.Post(() => _ = StartOrResumeMacroAsync(macroForCallback, useCountdown: false))));
                 bindings.Add(new GlobalHotkeyBinding(
                     hotkeyId++,
                     macroForCallback.StopHotkey,
-                    () => Dispatcher.UIThread.Post(Stop)));
+                    () => Dispatcher.UIThread.Post(PauseOrStop)));
             }
 
             var nextService = new GlobalHotkeyService();
@@ -418,15 +433,84 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
         }
     }
 
-    public Task StartAsync(bool useCountdown) => StartMacroAsync(SelectedMacro, useCountdown);
+    public Task StartAsync(bool useCountdown) => StartOrResumeMacroAsync(SelectedMacro, useCountdown);
+
+    /// <summary>运行中第一次调用暂停；已暂停时再次调用才完全停止。</summary>
+    public void PauseOrStop()
+    {
+        lock (_replacementStateLock)
+        {
+            if (!IsRunning)
+            {
+                return;
+            }
+
+            // 倒计时阶段还没有开启键盘拦截，此时沿用原有行为直接取消。
+            if (IsPaused || !_keyboardInterceptionService.IsEnabled)
+            {
+                Stop();
+                return;
+            }
+
+            IsPaused = true;
+            _keyboardInterceptionService.SetEnabled(false);
+            var macro = ActiveMacro;
+            if (macro is not null)
+            {
+                var logicalLength = GetLogicalLength(macro.MacroText);
+                var completed = GetCompletedLogicalLength(macro.MacroText);
+                SetStatus(
+                    $"替换已暂停 · {macro.Name}",
+                    $"按 {macro.StartHotkey.DisplayName} 继续，或再次按 {macro.StopHotkey.DisplayName} 停止",
+                    StatusSeverity.Warning);
+                RunningProgressDetail = $"已暂停 · 已替换 {completed:N0} / {logicalLength:N0} 字符";
+            }
+        }
+    }
 
     public void Stop()
     {
-        _keyboardInterceptionService.SetEnabled(false);
-        _runCancellation?.Cancel();
+        lock (_replacementStateLock)
+        {
+            _keyboardInterceptionService.SetEnabled(false);
+            _runCancellation?.Cancel();
+        }
     }
 
     public void LoadSample() => SelectedMacro.MacroText = SampleCode;
+
+    private Task StartOrResumeMacroAsync(MacroGroupViewModel macro, bool useCountdown)
+    {
+        if (IsPaused && ReferenceEquals(ActiveMacro, macro))
+        {
+            Resume();
+            return Task.CompletedTask;
+        }
+
+        return StartMacroAsync(macro, useCountdown);
+    }
+
+    private void Resume()
+    {
+        lock (_replacementStateLock)
+        {
+            var macro = ActiveMacro;
+            if (!IsRunning || !IsPaused || macro is null)
+            {
+                return;
+            }
+
+            IsPaused = false;
+            _keyboardInterceptionService.SetEnabled(true);
+            var logicalLength = GetLogicalLength(macro.MacroText);
+            var completed = GetCompletedLogicalLength(macro.MacroText);
+            SetStatus(
+                $"拦截已继续 · {macro.Name}",
+                $"每次普通按键替换 1 个字符 · 共 {logicalLength:N0} 个字符 · F1-F12、退格键放行",
+                StatusSeverity.Busy);
+            RunningProgressDetail = $"已替换 {completed:N0} / {logicalLength:N0} 字符";
+        }
+    }
 
     private async Task StartMacroAsync(MacroGroupViewModel macro, bool useCountdown)
     {
@@ -441,6 +525,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
         RunningProgressDetail = string.Empty;
         Progress = 0;
         _replacementIndex = 0;
+        IsPaused = false;
         IsRunning = true;
         var cancellation = new CancellationTokenSource();
         _runCancellation = cancellation;
@@ -464,11 +549,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
             var logicalLength = GetLogicalLength(macro.MacroText);
             SetStatus(
                 $"拦截已开启 · {macro.Name}",
-                $"每次普通按键替换 1 个字符 · 共 {logicalLength:N0} 个字符 · F1–F12 放行",
+                $"每次普通按键替换 1 个字符 · 共 {logicalLength:N0} 个字符 · F1-F12、退格键放行",
                 StatusSeverity.Busy);
             RunningProgressDetail = "等待键盘输入";
 
-            // 拦截模式持续到停止热键触发；每次普通按键由后台 worker 输出一份当前宏文本。
+            // 拦截模式持续到暂停或停止热键触发；每次普通按键由后台 worker 输出下一个字符。
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellation.Token);
         }
         catch (OperationCanceledException)
@@ -489,65 +574,74 @@ public sealed class MainWindowViewModel : ViewModelBase, IDisposable
 
             cancellation.Dispose();
             ActiveMacro = null;
+            IsPaused = false;
             IsRunning = false;
         }
     }
 
     /// <summary>低级钩子每拦截一个普通按键只输出宏文本的下一个字符。</summary>
-    private async Task ReplaceActiveInputAsync()
+    private Task ReplaceActiveInputAsync()
     {
-        var macro = ActiveMacro;
-        var cancellation = _runCancellation;
-        if (macro is null || cancellation is null || !IsRunning || macro.MacroText.Length == 0)
+        lock (_replacementStateLock)
         {
-            return;
-        }
-
-        cancellation.Token.ThrowIfCancellationRequested();
-        var text = macro.MacroText;
-        var logicalLength = GetLogicalLength(text);
-        var index = _replacementIndex;
-        if (index >= text.Length)
-        {
-            Stop();
-            return;
-        }
-
-        var character = text[index];
-        var isNewLine = character is '\r' or '\n';
-        var advance = character == '\r' && index + 1 < text.Length && text[index + 1] == '\n'
-            ? 2
-            : 1;
-
-        // 必须先发送、成功后再推进索引。SendInput 会失败（目标窗口以管理员权限运行被 UIPI 拦截、
-        // 前台窗口正在切换等），此时注入方法抛异常。旧实现无论成败都先推进索引，
-        // 失败的那个字符就被永久跳过；一旦跳过的是换行符，后面的内容会挤到同一行，
-        // 表现为"有时莫名其妙不换行、代码错乱"。现在失败则索引原地不动，下次按键重试同一个字符。
-        if (isNewLine)
-        {
-            _keyboardInputService.SendNewLine();
-        }
-        else
-        {
-            _keyboardInputService.SendCharacter(character);
-        }
-        _replacementIndex = index + advance;
-
-        var completed = _replacementIndex >= text.Length ? logicalLength : GetLogicalLength(text[.._replacementIndex]);
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (ReferenceEquals(ActiveMacro, macro) && IsRunning)
+            var macro = ActiveMacro;
+            var cancellation = _runCancellation;
+            if (macro is null || cancellation is null || !IsRunning || IsPaused || macro.MacroText.Length == 0)
             {
-                Progress = logicalLength == 0 ? 100 : completed * 100d / logicalLength;
-                RunningProgressDetail = $"已替换 {completed:N0} / {logicalLength:N0} 字符";
+                return Task.CompletedTask;
             }
-        });
 
-        if (_replacementIndex >= text.Length)
-        {
-            Stop();
+            cancellation.Token.ThrowIfCancellationRequested();
+            var text = macro.MacroText;
+            var logicalLength = GetLogicalLength(text);
+            var index = _replacementIndex;
+            if (index >= text.Length)
+            {
+                Stop();
+                return Task.CompletedTask;
+            }
+
+            var character = text[index];
+            var isNewLine = character is '\r' or '\n';
+            var advance = character == '\r' && index + 1 < text.Length && text[index + 1] == '\n'
+                ? 2
+                : 1;
+
+            // 必须先发送、成功后再推进索引。SendInput 会失败（目标窗口以管理员权限运行被 UIPI 拦截、
+            // 前台窗口正在切换等），此时注入方法抛异常。旧实现无论成败都先推进索引，
+            // 失败的那个字符就被永久跳过；一旦跳过的是换行符，后面的内容会挤到同一行，
+            // 表现为"有时莫名其妙不换行、代码错乱"。现在失败则索引原地不动，下次按键重试同一个字符。
+            if (isNewLine)
+            {
+                _keyboardInputService.SendNewLine();
+            }
+            else
+            {
+                _keyboardInputService.SendCharacter(character);
+            }
+            _replacementIndex = index + advance;
+
+            var completed = _replacementIndex >= text.Length ? logicalLength : GetLogicalLength(text[.._replacementIndex]);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (ReferenceEquals(ActiveMacro, macro) && IsRunning && !IsPaused)
+                {
+                    Progress = logicalLength == 0 ? 100 : completed * 100d / logicalLength;
+                    RunningProgressDetail = $"已替换 {completed:N0} / {logicalLength:N0} 字符";
+                }
+            });
+
+            if (_replacementIndex >= text.Length)
+            {
+                Stop();
+            }
         }
+
+        return Task.CompletedTask;
     }
+
+    private int GetCompletedLogicalLength(string text) =>
+        _replacementIndex >= text.Length ? GetLogicalLength(text) : GetLogicalLength(text[.._replacementIndex]);
 
     private void SetStatus(string title, string detail, StatusSeverity severity)
     {

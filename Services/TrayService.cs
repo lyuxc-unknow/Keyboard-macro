@@ -19,9 +19,10 @@ public sealed class TrayService : IDisposable
     private readonly Action _exitApplication;
     private readonly TrayIcon _trayIcon;
     private readonly TrayIcons _icons;
-    private readonly NativeMenuItem _stopItem;
+    private readonly NativeMenuItem _pauseStopItem;
     private readonly WindowIcon _stoppedIcon;
     private readonly WindowIcon _runningIcon;
+    private readonly WindowIcon _pausedIcon;
     private bool _disposed;
 
     public TrayService(
@@ -37,16 +38,17 @@ public sealed class TrayService : IDisposable
 
         _stoppedIcon = CreateStatusIcon(Color.FromRgb(112, 123, 137));
         _runningIcon = CreateStatusIcon(Color.FromRgb(35, 177, 108));
+        _pausedIcon = CreateStatusIcon(Color.FromRgb(224, 151, 38));
 
         var menu = new NativeMenu();
         var showItem = new NativeMenuItem("显示输入演示台");
         showItem.Click += (_, _) => _showWindow();
-        _stopItem = new NativeMenuItem("停止当前宏");
-        _stopItem.Click += (_, _) => _viewModel.Stop();
+        _pauseStopItem = new NativeMenuItem("暂停 / 停止当前宏");
+        _pauseStopItem.Click += (_, _) => _viewModel.PauseOrStop();
         var exitItem = new NativeMenuItem("退出");
         exitItem.Click += (_, _) => _exitApplication();
         menu.Items.Add(showItem);
-        menu.Items.Add(_stopItem);
+        menu.Items.Add(_pauseStopItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(exitItem);
 
@@ -71,38 +73,55 @@ public sealed class TrayService : IDisposable
 
         TrayIcon.SetIcons(_application, _icons);
         _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
-        UpdateStatus(_viewModel.IsRunning);
+        UpdateStatus();
     }
 
     private void TrayIconOnClicked(object? sender, EventArgs e) => _showWindow();
 
     private void ViewModelOnPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(MainWindowViewModel.IsRunning))
+        if (e.PropertyName is not (nameof(MainWindowViewModel.IsRunning) or nameof(MainWindowViewModel.IsPaused)))
         {
             return;
         }
 
         if (Dispatcher.UIThread.CheckAccess())
         {
-            UpdateStatus(_viewModel.IsRunning);
+            UpdateStatus();
         }
         else
         {
-            Dispatcher.UIThread.Post(() => UpdateStatus(_viewModel.IsRunning));
+            Dispatcher.UIThread.Post(UpdateStatus);
         }
     }
 
-    private void UpdateStatus(bool isRunning)
+    private void UpdateStatus()
     {
         if (_disposed)
         {
             return;
         }
 
-        _trayIcon.Icon = isRunning ? _runningIcon : _stoppedIcon;
-        _trayIcon.ToolTipText = isRunning ? "输入演示台 · 运行中" : "输入演示台 · 已停止";
-        _stopItem.IsEnabled = isRunning;
+        if (_viewModel.IsPaused)
+        {
+            _trayIcon.Icon = _pausedIcon;
+            _trayIcon.ToolTipText = "输入演示台 · 已暂停";
+            _pauseStopItem.Header = "停止当前宏";
+        }
+        else if (_viewModel.IsRunning)
+        {
+            _trayIcon.Icon = _runningIcon;
+            _trayIcon.ToolTipText = "输入演示台 · 运行中";
+            _pauseStopItem.Header = "暂停当前宏";
+        }
+        else
+        {
+            _trayIcon.Icon = _stoppedIcon;
+            _trayIcon.ToolTipText = "输入演示台 · 已停止";
+            _pauseStopItem.Header = "暂停 / 停止当前宏";
+        }
+
+        _pauseStopItem.IsEnabled = _viewModel.IsRunning;
     }
 
     private static WindowIcon CreateStatusIcon(Color color)
@@ -139,6 +158,7 @@ public sealed class TrayService : IDisposable
         _trayIcon.Clicked -= TrayIconOnClicked;
         _trayIcon.Dispose();
         TrayIcon.SetIcons(_application, new TrayIcons());
+        ((IDisposable)_pausedIcon).Dispose();
         ((IDisposable)_runningIcon).Dispose();
         ((IDisposable)_stoppedIcon).Dispose();
     }

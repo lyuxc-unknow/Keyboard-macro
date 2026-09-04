@@ -89,7 +89,7 @@ public sealed class MacroGroupViewModel : ViewModelBase
         }
     }
 
-    public string HotkeySummary => $"{StartHotkey.DisplayName} 开始  ·  {StopHotkey.DisplayName} 停止";
+    public string HotkeySummary => $"{StartHotkey.DisplayName} 开始/继续  ·  {StopHotkey.DisplayName} 暂停/停止";
 
     public MacroGroupViewModel Clone(string name) => new(
         name,

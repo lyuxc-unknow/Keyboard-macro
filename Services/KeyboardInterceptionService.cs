@@ -8,7 +8,7 @@ namespace SimToAutoWirte.Services;
 
 /// <summary>
 /// Windows 全局低级键盘钩子。启用后吞掉普通按键，并把替换请求交给异步消费者；
-/// F1-F12 和修饰键始终放行，保证全局启停快捷键与系统快捷键仍可用。
+/// F1-F12、退格键和修饰键始终放行，保证全局启动、暂停/停止快捷键、文本修正与系统快捷键仍可用。
 /// </summary>
 public sealed class KeyboardInterceptionService : IDisposable
 {
@@ -16,6 +16,7 @@ public sealed class KeyboardInterceptionService : IDisposable
     private const uint MessageKeyDown = 0x0100;
     private const uint MessageSysKeyDown = 0x0104;
     private const uint InjectedEventFlag = 0x0010;
+    private const int VirtualKeyBack = 0x08;
     private const int VirtualKeyF1 = 0x70;
     private const int VirtualKeyF12 = 0x7B;
 
@@ -227,6 +228,12 @@ public sealed class KeyboardInterceptionService : IDisposable
     {
         // F 区永远放行，避免拦截启动/停止宏所依赖的功能键。
         if (virtualKey is >= VirtualKeyF1 and <= VirtualKeyF12)
+        {
+            return false;
+        }
+
+        // 退格键放行，允许用户在目标程序中手动修正已经替换出的内容。
+        if (virtualKey == VirtualKeyBack)
         {
             return false;
         }

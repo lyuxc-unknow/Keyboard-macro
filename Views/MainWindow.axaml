@@ -80,6 +80,7 @@
           <ListBox Grid.Row="1"
                    Classes="macroList"
                    ItemsSource="{Binding Macros}"
+                   IsEnabled="{Binding CanConfigure}"
                    SelectedItem="{Binding SelectedMacro, Mode=TwoWay}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:MacroGroupViewModel">
@@ -224,7 +225,7 @@
 
               <Grid Grid.Row="2" Grid.Column="2" ColumnDefinitions="*,10,*">
                 <StackPanel Spacing="5">
-                  <TextBlock Text="停止热键" Classes="label" />
+                  <TextBlock Text="暂停/停止热键" Classes="label" />
                   <ComboBox ItemsSource="{Binding HotkeyOptions}"
                             SelectedItem="{Binding SelectedMacro.StopHotkey, Mode=TwoWay}"
                             SelectionChanged="Hotkey_OnSelectionChanged"
@@ -299,7 +300,7 @@
                 Click="StartButton_OnClick"
                 IsEnabled="{Binding CanStart}">
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="▶  开始" />
+            <TextBlock Text="{Binding StartActionLabel}" />
             <TextBlock Text="{Binding SelectedMacro.StartHotkey.DisplayName}" Opacity="0.72" />
           </StackPanel>
         </Button>
@@ -309,7 +310,7 @@
                 Click="StopButton_OnClick"
                 IsEnabled="{Binding CanStop}">
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="■  停止" />
+            <TextBlock Text="Ⅱ  暂停 / 停止" />
             <TextBlock Text="{Binding SelectedMacro.StopHotkey.DisplayName}" Opacity="0.72" />
           </StackPanel>
         </Button>

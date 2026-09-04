@@ -202,7 +202,7 @@ public partial class MainWindow : Window
         await ViewModel.StartAsync(useCountdown: true);
     }
 
-    private void StopButton_OnClick(object? sender, RoutedEventArgs e) => ViewModel?.Stop();
+    private void StopButton_OnClick(object? sender, RoutedEventArgs e) => ViewModel?.PauseOrStop();
 
     // ─────────────  宏组管理  ─────────────
 
